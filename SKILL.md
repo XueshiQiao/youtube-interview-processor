@@ -13,6 +13,15 @@ description: >-
 
 ---
 
+## 前置依赖与自动自愈机制 (Prerequisites & Auto-Healing)
+
+本技能具备**全自动依赖检测与自愈能力**：
+- 当运行 `scripts/download_video_and_sub.py` 时，脚本会自动检测系统是否安装了 `yt-dlp`。
+- **若未检测到 `yt-dlp`，脚本将自动尝试通过 `pip install -U yt-dlp`（或 macOS 下的 `brew install yt-dlp`）进行静默自愈安装**，无需人工干预。
+- 若调用本 Skill 的 AI Agent 处于特定限制环境，Agent 亦可主动执行 `pip install yt-dlp` 确保环境就绪。
+
+---
+
 ## 核心工作流步骤
 
 ### 步骤 1：视频与独立字幕下载 (基于 yt-dlp)
@@ -21,7 +30,7 @@ description: >-
 ```bash
 python3 scripts/download_video_and_sub.py "<YouTube_URL>" [output_dir]
 ```
-- **核心逻辑**：优先获取 `en-orig` 语音原声转录，避免二手翻译；使用 `--cookies-from-browser chrome` 保证高清画质与权限；下载失败时提供明确的诊断排查说明。
+- **核心逻辑**：优先获取 `en-orig` 语音原声转录，避免二手翻译；使用 `--cookies-from-browser chrome` 保证高清画质与权限；下载失败时提供明确的诊断排查说明。自动检测并自愈安装缺失依赖。
 
 ---
 

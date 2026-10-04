@@ -11,16 +11,43 @@ import os
 import shutil
 import subprocess
 
-def check_dependencies():
-    if not shutil.which("yt-dlp"):
-        print("\n[错误: 缺少依赖] 系统中未检测到 'yt-dlp' 命令行工具！")
-        print("  - 请执行以下命令安装：")
-        print("      brew install yt-dlp  (推荐 macOS)")
-        print("      或 pip install -U yt-dlp")
-        sys.exit(1)
+def ensure_dependencies():
+    if shutil.which("yt-dlp"):
+        return
+
+    print("\n⚠️ [依赖检测] 系统中未检测到 'yt-dlp' 命令行工具。")
+    print("🚀 正在为您自动安装 'yt-dlp' 依赖...")
+
+    # 1. 优先尝试使用当前 Python 环境的 pip 安装
+    try:
+        print("-> 正在执行: pip install -U yt-dlp ...")
+        subprocess.run([sys.executable, "-m", "pip", "install", "-U", "yt-dlp"], check=True)
+        if shutil.which("yt-dlp"):
+            print("✅ 'yt-dlp' 已通过 pip 自动安装成功！\n")
+            return
+    except Exception as e:
+        print(f"   pip 自动安装受阻: {e}")
+
+    # 2. 如果是 macOS 且已安装 Homebrew，尝试使用 brew 安装
+    if shutil.which("brew"):
+        try:
+            print("-> 正在尝试通过 Homebrew 安装: brew install yt-dlp ...")
+            subprocess.run(["brew", "install", "yt-dlp"], check=True)
+            if shutil.which("yt-dlp"):
+                print("✅ 'yt-dlp' 已通过 Homebrew 自动安装成功！\n")
+                return
+        except Exception as e:
+            print(f"   Homebrew 自动安装受阻: {e}")
+
+    # 3. 若自动安装均失败，输出清晰的手动安装指引
+    print("\n❌ 自动安装尝试失败，请根据您的操作系统手动执行安装命令：")
+    print("   - macOS 推荐: brew install yt-dlp")
+    print("   - Python 通用: pip install -U yt-dlp")
+    print("   - Linux: sudo apt install yt-dlp 或从 GitHub 下载二进制发布包")
+    sys.exit(1)
 
 def run_download(url, output_dir=".", browser_cookies="chrome"):
-    check_dependencies()
+    ensure_dependencies()
     os.makedirs(output_dir, exist_ok=True)
     
     print(f"\n[1/2] 正在拉取视频与独立字幕信息: {url}")
