@@ -4,7 +4,7 @@ description: >-
   全自动处理 YouTube 采访与技术长视频：包含通过 yt-dlp 下载视频与独立 en-orig 原始字幕、
   消除 YouTube 双行滚动冗余并重构成语义长句、基于滑动窗口上下文翻译为纯中文/双语字幕、
   基于4维反共识探测框架深度提炼访谈核心洞察，并生成包含逐字对话精读与洞察仪表盘的交互式 HTML 网页。
-  当用户要求处理、下载、整理、翻译或总结 YouTube 视频/访谈字幕时使用此技能。
+  当用户输入 YouTube 链接或要求处理、下载、整理、翻译、总结 YouTube 访谈时触发此技能。
 ---
 
 # YouTube 访谈视频全流程处理与精读精翻技能 (YouTube Interview Processor)
@@ -13,19 +13,22 @@ description: >-
 
 ---
 
-## 全流程透明看板与 Agent 交互协议 (Roadmap & Interaction Protocol)
+## ⚠️ Agent 交互执行关键铁律 (CRITICAL: Interactive Output Rules)
 
-为彻底杜绝“黑盒执行”，AI Agent 在调用本技能时，**必须严格遵循以下交互协议**：
+为彻底杜绝“黑盒执行”和连续静默调用工具导致的盲等，Agent 在执行本技能时，**必须严格遵循以下交互规范**：
 
-1. **前置看板与决策确认（在执行任何下载/处理前）**：
-   - Agent 必须首先向用户输出完整的 **5 步全流程流水线看板**，标明每一步的目标；
-   - 运行环境预检：汇报 Python、yt-dlp、以及系统检测到的可用浏览器（如 Chrome、Safari、Firefox）；
-   - **决策前置确认**：如果用户未明确指定偏好，主动告知默认配置（如：“*已检测到 Chrome 与 Safari，默认选用 Chrome 作为 Cookie 认证源，如有其他偏好可随时告诉我*”），并与用户确认是否需要仅字幕模式或特定语言。
-2. **阶段化实时播报**：
-   - 每进入一个新步骤，更新看板状态（如 `[2/5] 正在下载媒体与字幕...`）；
-   - 输出量化进度（如：“已过滤 1,009 个 10ms 帧，规整出 332 句长句”、“正在进行第 3/17 批上下文翻译”、“正在运用 4 维反共识框架提炼洞察”）；
-3. **最终交付报告**：
-   - 统一汇总所有生成的文件、本地路径与离线 HTML 网页预览方式。
+1. **绝对禁止连续静默调用底层命令而不给用户任何文字反馈！**
+2. **第一步（预检与确认）必须向用户输出结构化看板**：
+   - 必须先输出全流程 5 步看板，让用户清晰看到所有阶段与当前进度；
+   - 执行 `python3 scripts/download_video_and_sub.py --check-only` 预检环境并展示结果（Python、yt-dlp、检测到的浏览器如 Chrome / Safari）；
+   - **前置确认决策**：向用户明确汇报当前选用的浏览器 Cookie 策略，并告知用户可选择是否只下载字幕（`--sub-only`）；
+3. **进入后续每一步时，必须实时更新状态并播报量化指标**：
+   - 步骤 2：更新为 `[2/5] 正在下载媒体与字幕`，完成后汇报捕获的字幕语言；
+   - 步骤 3：更新为 `[3/5] 正在去重与长句重构`，汇报去重条数与长句统计；
+   - 步骤 4：更新为 `[4/5] 正在进行上下文滑动翻译`，按批次播报进度；
+   - 步骤 5：更新为 `[5/5] 正在提炼 4 维反共识洞察与生成 HTML 网页`；
+4. **最终交付报告**：
+   - 统一给出生成文件的本地路径与离线 HTML 网页预览指引。
 
 ---
 
@@ -54,7 +57,7 @@ python3 scripts/download_video_and_sub.py "<YouTube_URL>" [output_dir] [--browse
 
 ---
 
-### 步骤 2：滚动字幕去重与长句语义重构
+### 步骤 3：滚动字幕去重与长句语义重构 (Deduplication & Restructuring)
 YouTube 的自动字幕存在“双行滚动重叠（A-B / B-C）”与“10ms 动画刷新帧”。运行通用脚本将其规整为结构完整、时间轴严密的语义长句。
 
 ```bash
@@ -71,7 +74,7 @@ python3 scripts/clean_and_merge_srt.py <input.en-orig.srt> [output.merged.srt]
 
 ---
 
-### 步骤 3：上下文感知滑动窗口翻译 (Context-Aware Translation)
+### 步骤 4：上下文感知滑动窗口翻译 (Context-Aware Translation)
 严禁单句隔离直译！长篇访谈中包含大量代词（it, they, that thing）与跨句逻辑，必须采用滑动窗口批量翻译：
 
 - **输入文件**：步骤 2 产出的 `.merged.srt`
@@ -90,38 +93,20 @@ python3 scripts/clean_and_merge_srt.py <input.en-orig.srt> [output.merged.srt]
 
 ---
 
-### 步骤 4：4维反共识探测框架（核心洞察提炼方法论）
-严禁做信息等权、温吞水平铺的流水账总结！必须启动【4维反共识探测器】挖掘全片最具穿透力的反直觉真相：
-
-1. **大众常识反转探测 (Breaking Common Consensus)**：
-   - 扫描嘉宾明确打破大众预设或提出对立对比的论断（`It's not about X, but actually Y`）。
-   - 思考：在这场访谈中，大众通常认为决定胜负的因素是什么，而嘉宾指出的真正决定性变量是什么？（例如：能力 vs 野心、模型规模 vs 场景密度）。
-2. **权威专家的反常行为 (Paradoxical Behavior of Top Experts)**：
-   - 寻找作为顶级专家的嘉宾，做出了严重违背其原有工种或常理的行为（例如：顶级程序员彻底放弃手写代码、AI巨头警告不要盲目做Agent）。
-3. **瓶颈位移探测 (Bottleneck Inversion)**：
-   - 当原本的旧技术瓶颈（如编程能力、算力成本、信息获取）被解决后，新的瓶颈转移到了哪个意想不到的维度？
-4. **反套路与痛点警示 (Anti-Hype & Reality Check)**：
-   - 嘉宾对当前狂热趋势（如盲目刷Token、做晨报玩具、复杂界面堆砌）提出了哪些尖锐批评和冷思考？
-
----
-
-### 步骤 5：生成交互式 HTML 对话精读与深度总结网页
-不仅产出字幕，更生成开箱即用、免看视频即可沉浸式阅读的现代化 HTML 网页：
+### 步骤 5：4维反共识探测框架与交互 HTML 网页生成
+严禁做信息等权、流水账式的目录总结！启动【4维反共识探测器】挖掘全片最具穿透力的反直觉真相，并生成交互 HTML 网页：
 
 ```bash
-python3 scripts/generate_html_reader.py
+python3 scripts/generate_html_reader.py <input.merged.srt> <input.merged.zh-Hans.srt> [output.html]
 ```
-- **Tab 1: ⚡ 颠覆性核心洞察与全局总结**：
-  - **核心灵魂总纲**：基于步骤 4 提炼出的全片最关键反共识洞见；
-  - **5大反常识卡片**：【大众共识】vs【颠覆真相】对比矩阵；
-  - **6大章节深度大纲**：带发言篇章一键跳转链接；
-  - **行动指南**：为从业者量身打造的落地实操建议。
-- **Tab 2: 📖 访谈对谈录 (Interactive Dialogue Stream)**：
-  - 按说话人回合聚合成自然长段落（告别散碎字幕感）；
-  - 角色专属徽章与时间跨度标注；
-  - 实时关键词搜索与高亮；
-  - 说话人筛选过滤；
-  - 支持中英双语与纯中文一键切换。
+- **4 维反共识雷达**：
+  1. **大众常识反转**：寻找嘉宾打破行业共识的核心变量（如：野心差距 vs 能力差距）；
+  2. **权威专家的反常行为**：顶尖架构师公开“封笔”手写代码；
+  3. **瓶颈位移探测**：技术商品化后，新的核心阻力转移至何处；
+  4. **反套路与冷思考**：警惕盲目刷 Token，做满 5 次前严禁自动化。
+- **产出网页规格**：
+  - **Tab 1: ⚡ 颠覆性核心洞察**：封面级核心总纲、反直觉认知矩阵卡片、分章节深度剖析与直达跳转。
+  - **Tab 2: 📖 访谈对谈录**：将散碎字幕整合成高信息密度的**说话人回合自然大段落（Speech Turns）**，支持双视图切换、一键中英对照开关、实时关键词搜索与高亮定位。
 
 ---
 
@@ -129,8 +114,8 @@ python3 scripts/generate_html_reader.py
 
 | 异常现象 | 根本原因 | 推荐解决操作 |
 | :--- | :--- | :--- |
-| `yt-dlp: command not found` | 缺少下载工具依赖 | 执行 `brew install yt-dlp` 或 `pip install -U yt-dlp` |
-| `Chrome cookie DB is locked` | Chrome 浏览器正在占用数据库 | 完全退出 Google Chrome 后重试，或改用 Safari / Firefox 选项 |
+| `yt-dlp: command not found` | 缺少下载工具依赖 | 脚本内置自愈功能，会自动尝试 `pip` / `brew` 安装；亦可手动执行 `brew install yt-dlp` |
+| `Chrome cookie DB is locked` | Chrome 浏览器正在占用数据库 | 脚本已支持自动降级重试；亦可通过 `--browser safari` 或 `--browser none` 运行 |
 | `en-orig subtitle not available` | 视频作者关闭了原声自动识别或仅提供了普通字幕 | 运行 `yt-dlp --list-subs <URL>` 查看可用语言，降级采用 `en` |
 | `JSON Decode Error in Translation` | 大模型批次输出被截断 | 将批次由 25 句缩减至 15 句，并在 Prompt 中强化“仅输出合法 JSON 数组”指令 |
 | `Timecode mismatch` | 翻译过程中丢失了某些条目 | 严格使用已规整的 `.merged.srt` 编号，通过缓存字典补全缺失的 ID 重新请求 |
