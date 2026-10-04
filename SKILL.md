@@ -15,19 +15,24 @@ description: >-
 
 ## ⚠️ Agent 交互执行关键铁律 (CRITICAL: Interactive Output Rules)
 
-为彻底杜绝“黑盒执行”和连续静默调用工具导致的盲等，Agent 在执行本技能时，**必须严格遵循以下交互规范**：
+为彻底杜绝“黑盒执行”、连续静默调用工具与无意义的文件翻看导致的盲等，Agent 在执行本技能时，**必须严格遵循以下交互规范**：
 
 1. **绝对禁止连续静默调用底层命令而不给用户任何文字反馈！**
-2. **第一步（预检与确认）必须向用户输出结构化看板**：
-   - 必须先输出全流程 5 步看板，让用户清晰看到所有阶段与当前进度；
-   - 执行 `python3 scripts/download_video_and_sub.py --check-only` 预检环境并展示结果（Python、yt-dlp、检测到的浏览器如 Chrome / Safari）；
+2. **严禁在第一步之后顺带翻看脚本源码或调用探测命令！**
+   - 本技能下所有的脚本（`download_video_and_sub.py`、`clean_and_merge_srt.py`、`generate_html_reader.py`）参数与用法在本文档中**均有完整详尽的说明**；
+   - **严禁 Agent 调用 `read_file` 去逐行阅读 `scripts/` 下的 Python 源码**；
+   - **严禁 Agent 执行 `ls` 或 `--help` 进行多余探查**；这会导致界面出现连续调用工具的徽标，让用户以为程序卡死或失控！
+3. **第一步（预检与确认）必须“执行单命令 -> 即刻停止工具调用 -> 立即输出文字回复”**：
+   - 执行 `python3 scripts/download_video_and_sub.py --check-only`；
+   - **执行完毕后，当前轮次必须立即停止调用任何其他工具**；
+   - **必须立即向用户输出结构化看板**：全流程 5 步看板、展示环境预检结果（Python、yt-dlp、检测到的浏览器如 Chrome / Safari）；
    - **前置确认决策**：向用户明确汇报当前选用的浏览器 Cookie 策略，并告知用户可选择是否只下载字幕（`--sub-only`）；
-3. **进入后续每一步时，必须实时更新状态并播报量化指标**：
+4. **进入后续每一步时，必须实时更新状态并播报量化指标**：
    - 步骤 2：更新为 `[2/5] 正在下载媒体与字幕`，完成后汇报捕获的字幕语言；
    - 步骤 3：更新为 `[3/5] 正在去重与长句重构`，汇报去重条数与长句统计；
    - 步骤 4：更新为 `[4/5] 正在进行上下文滑动翻译`，按批次播报进度；
    - 步骤 5：更新为 `[5/5] 正在提炼 4 维反共识洞察与生成 HTML 网页`；
-4. **最终交付报告**：
+5. **最终交付报告**：
    - 统一给出生成文件的本地路径与离线 HTML 网页预览指引。
 
 ---
@@ -115,7 +120,7 @@ python3 scripts/generate_html_reader.py <input.merged.srt> <input.merged.zh-Hans
 | 异常现象 | 根本原因 | 推荐解决操作 |
 | :--- | :--- | :--- |
 | `yt-dlp: command not found` | 缺少下载工具依赖 | 脚本内置自愈功能，会自动尝试 `pip` / `brew` 安装；亦可手动执行 `brew install yt-dlp` |
-| `Chrome cookie DB is locked` | Chrome 浏览器正在占用数据库 | 脚本已支持自动降级重试；亦可通过 `--browser safari` 或 `--browser none` 运行 |
+| `Chrome cookie DB is locked` / `Operation not permitted` | macOS TCC 权限保护（未开启 Full Disk Access）或浏览器占用数据库 | 1. 终端用户手动运行时拥有权限可直接读取；2. 在「系统设置 -> 隐私与安全性 -> 完全磁盘访问权限」给终端/CLI授权；3. 或使用扩展导出 `youtube_cookies.txt`；4. 或通过 `--browser safari` / `--browser none` 运行 |
 | `en-orig subtitle not available` | 视频作者关闭了原声自动识别或仅提供了普通字幕 | 运行 `yt-dlp --list-subs <URL>` 查看可用语言，降级采用 `en` |
 | `JSON Decode Error in Translation` | 大模型批次输出被截断 | 将批次由 25 句缩减至 15 句，并在 Prompt 中强化“仅输出合法 JSON 数组”指令 |
 | `Timecode mismatch` | 翻译过程中丢失了某些条目 | 严格使用已规整的 `.merged.srt` 编号，通过缓存字典补全缺失的 ID 重新请求 |
