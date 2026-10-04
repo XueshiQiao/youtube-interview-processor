@@ -13,24 +13,44 @@ description: >-
 
 ---
 
-## 前置依赖与自动自愈机制 (Prerequisites & Auto-Healing)
+## 全流程透明看板与 Agent 交互协议 (Roadmap & Interaction Protocol)
 
-本技能具备**全自动依赖检测与自愈能力**：
-- 当运行 `scripts/download_video_and_sub.py` 时，脚本会自动检测系统是否安装了 `yt-dlp`。
-- **若未检测到 `yt-dlp`，脚本将自动尝试通过 `pip install -U yt-dlp`（或 macOS 下的 `brew install yt-dlp`）进行静默自愈安装**，无需人工干预。
-- 若调用本 Skill 的 AI Agent 处于特定限制环境，Agent 亦可主动执行 `pip install yt-dlp` 确保环境就绪。
+为彻底杜绝“黑盒执行”，AI Agent 在调用本技能时，**必须严格遵循以下交互协议**：
+
+1. **前置看板与决策确认（在执行任何下载/处理前）**：
+   - Agent 必须首先向用户输出完整的 **5 步全流程流水线看板**，标明每一步的目标；
+   - 运行环境预检：汇报 Python、yt-dlp、以及系统检测到的可用浏览器（如 Chrome、Safari、Firefox）；
+   - **决策前置确认**：如果用户未明确指定偏好，主动告知默认配置（如：“*已检测到 Chrome 与 Safari，默认选用 Chrome 作为 Cookie 认证源，如有其他偏好可随时告诉我*”），并与用户确认是否需要仅字幕模式或特定语言。
+2. **阶段化实时播报**：
+   - 每进入一个新步骤，更新看板状态（如 `[2/5] 正在下载媒体与字幕...`）；
+   - 输出量化进度（如：“已过滤 1,009 个 10ms 帧，规整出 332 句长句”、“正在进行第 3/17 批上下文翻译”、“正在运用 4 维反共识框架提炼洞察”）；
+3. **最终交付报告**：
+   - 统一汇总所有生成的文件、本地路径与离线 HTML 网页预览方式。
 
 ---
 
 ## 核心工作流步骤
 
-### 步骤 1：视频与独立字幕下载 (基于 yt-dlp)
+### 步骤 1：环境预检与多源配置确认 (Pre-flight Check)
+在正式处理前，运行预检程序检测本地环境并确定参数：
+
+```bash
+python3 scripts/download_video_and_sub.py --check-only
+```
+- **核心逻辑**：
+  * 检测 Python 版本与 `yt-dlp` 状态（缺失时自动自愈安装）；
+  * 自动发现系统安装的所有浏览器（Chrome, Safari, Firefox, Edge, Arc, Brave）；
+  * 确定 Cookie 认证策略（支持通过 `--browser safari/chrome/none` 自由指定）。
+
+---
+
+### 步骤 2：视频与独立字幕下载 (Media Download)
 运行脚本下载视频源文件与独立的原始英文转录字幕（`-orig`），确保字幕为外部独立 `.srt` 文件，不封装入视频容器。
 
 ```bash
-python3 scripts/download_video_and_sub.py "<YouTube_URL>" [output_dir]
+python3 scripts/download_video_and_sub.py "<YouTube_URL>" [output_dir] [--browser auto/chrome/safari/none] [--sub-only]
 ```
-- **核心逻辑**：优先获取 `en-orig` 语音原声转录，避免二手翻译；使用 `--cookies-from-browser chrome` 保证高清画质与权限；下载失败时提供明确的诊断排查说明。自动检测并自愈安装缺失依赖。
+- **核心逻辑**：优先获取 `en-orig` 语音原声转录，避免二手翻译；Cookie 锁死时自动降级无 Cookie 重试；可加 `--sub-only` 仅抓字幕。
 
 ---
 

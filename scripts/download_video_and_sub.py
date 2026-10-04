@@ -1,64 +1,155 @@
 #!/usr/bin/env python3
 """
-YouTube Video and Standalone Subtitle Downloader
-- Downloads standalone video and separate .srt subtitle (no container embedding)
-- Prioritizes 'en-orig' auto-captions
-- Includes robust error diagnosis and user-friendly troubleshooting advice
+YouTube Video and Standalone Subtitle Downloader with Pre-flight Check & Live Progress
+- Detects system environment (Python, yt-dlp, installed browsers)
+- Interactive/CLI-driven browser selection (Chrome, Safari, Firefox, Edge)
+- Auto-fallback if cookie database is locked
+- Prints clear visual pipeline roadmap and step-by-step progress
 """
 
 import sys
 import os
 import shutil
 import subprocess
+import argparse
+
+def print_pipeline_roadmap(current_step=1):
+    steps = [
+        ("1/5", "🛠️ 环境预检与配置确认 (Pre-flight Check & Configuration)"),
+        ("2/5", "⬇️ 视频与独立原声字幕下载 (Media & Standalone Subtitle Download)"),
+        ("3/5", "🧹 滚动去重与语义长句重构 (Deduplication & Sentence Restructure)"),
+        ("4/5", "🌐 上下文感知滑动窗口翻译 (Context-Aware Translation)"),
+        ("5/5", "⚡ 4维反共识提炼与交互网页生成 (Contrarian Insights & HTML Dashboard)"),
+    ]
+    
+    print("\n" + "=" * 68)
+    print("🎬 YouTube Interview Processor 全流程流水线状态看板")
+    print("=" * 68)
+    for num, title in steps:
+        step_idx = int(num.split("/")[0])
+        if step_idx < current_step:
+            status = "✅ 已完成"
+            color_mark = "  "
+        elif step_idx == current_step:
+            status = "▶️ 进行中"
+            color_mark = "👉"
+        else:
+            status = "⏳ 待执行"
+            color_mark = "  "
+        print(f"{color_mark} [{num}] {title.ljust(48)} [{status}]")
+    print("=" * 68 + "\n")
+
+def detect_available_browsers():
+    """检测当前操作系统安装的主流浏览器"""
+    browsers = []
+    # macOS 应用程序检测
+    mac_apps = {
+        'chrome': '/Applications/Google Chrome.app',
+        'safari': '/Applications/Safari.app',
+        'firefox': '/Applications/Firefox.app',
+        'edge': '/Applications/Microsoft Edge.app',
+        'arc': '/Applications/Arc.app',
+        'brave': '/Applications/Brave Browser.app'
+    }
+    for b_name, path in mac_apps.items():
+        if os.path.exists(path):
+            browsers.append(b_name)
+            
+    # 通用 PATH 二进制检测
+    for b in ['google-chrome', 'chromium', 'firefox', 'microsoft-edge']:
+        if shutil.which(b) and b not in browsers:
+            browsers.append(b)
+    return browsers
 
 def ensure_dependencies():
+    """检测 yt-dlp，缺失时尝试自动安装"""
     if shutil.which("yt-dlp"):
-        return
+        return True, "已就绪"
 
-    print("\n⚠️ [依赖检测] 系统中未检测到 'yt-dlp' 命令行工具。")
-    print("🚀 正在为您自动安装 'yt-dlp' 依赖...")
-
-    # 1. 优先尝试使用当前 Python 环境的 pip 安装
+    print("⚠️ [依赖预检] 系统中未检测到 'yt-dlp'。正在尝试为您自动安装...")
+    # 1. 尝试 pip 安装
     try:
-        print("-> 正在执行: pip install -U yt-dlp ...")
-        subprocess.run([sys.executable, "-m", "pip", "install", "-U", "yt-dlp"], check=True)
+        subprocess.run([sys.executable, "-m", "pip", "install", "-U", "yt-dlp"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if shutil.which("yt-dlp"):
-            print("✅ 'yt-dlp' 已通过 pip 自动安装成功！\n")
-            return
-    except Exception as e:
-        print(f"   pip 自动安装受阻: {e}")
+            return True, "已通过 pip 自动安装成功"
+    except Exception:
+        pass
 
-    # 2. 如果是 macOS 且已安装 Homebrew，尝试使用 brew 安装
+    # 2. 尝试 brew 安装 (macOS)
     if shutil.which("brew"):
         try:
-            print("-> 正在尝试通过 Homebrew 安装: brew install yt-dlp ...")
-            subprocess.run(["brew", "install", "yt-dlp"], check=True)
+            subprocess.run(["brew", "install", "yt-dlp"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if shutil.which("yt-dlp"):
-                print("✅ 'yt-dlp' 已通过 Homebrew 自动安装成功！\n")
-                return
-        except Exception as e:
-            print(f"   Homebrew 自动安装受阻: {e}")
+                return True, "已通过 Homebrew 自动安装成功"
+        except Exception:
+            pass
 
-    # 3. 若自动安装均失败，输出清晰的手动安装指引
-    print("\n❌ 自动安装尝试失败，请根据您的操作系统手动执行安装命令：")
-    print("   - macOS 推荐: brew install yt-dlp")
-    print("   - Python 通用: pip install -U yt-dlp")
-    print("   - Linux: sudo apt install yt-dlp 或从 GitHub 下载二进制发布包")
-    sys.exit(1)
+    return False, "未安装，请执行 brew install yt-dlp 或 pip install yt-dlp"
 
-def run_download(url, output_dir=".", browser_cookies="chrome"):
-    ensure_dependencies()
-    os.makedirs(output_dir, exist_ok=True)
+def run_preflight_check(output_dir=".", preferred_browser=None):
+    """阶段 1：环境预检与系统配置检查"""
+    print_pipeline_roadmap(current_step=1)
+    print("🔍 [阶段 1/5] 正在执行系统环境与前置依赖预检...")
     
-    print(f"\n[1/2] 正在拉取视频与独立字幕信息: {url}")
-    print(f"  - 目标保存目录: {os.path.abspath(output_dir)}")
-    print(f"  - 优先拉取字幕语言: en-orig (原声语音转录)")
-    print(f"  - 独立字幕模式: 保持 .srt 外部文件，不封装入视频容器")
-    
-    # 步骤 1: 下载独立字幕 (en-orig, 降级至 en)
+    # 1. Python 环境
+    py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    print(f"  • Python 运行环境: v{py_ver} ({sys.executable}) [✅ 通过]")
+
+    # 2. yt-dlp 检测
+    ytdlp_ok, ytdlp_msg = ensure_dependencies()
+    if ytdlp_ok:
+        ytdlp_ver = subprocess.getoutput("yt-dlp --version").strip()
+        print(f"  • yt-dlp 下载工具: v{ytdlp_ver} ({ytdlp_msg}) [✅ 通过]")
+    else:
+        print(f"  • yt-dlp 下载工具: [❌ 失败: {ytdlp_msg}]")
+        return False, None
+
+    # 3. 浏览器检测
+    detected_browsers = detect_available_browsers()
+    browsers_str = ", ".join(b.capitalize() for b in detected_browsers) if detected_browsers else "未检测到主流浏览器"
+    print(f"  • 检测到本地浏览器: {browsers_str} [✅ 共 {len(detected_browsers)} 个可用]")
+
+    # 确定使用的 Cookie 源
+    chosen_browser = None
+    if preferred_browser and preferred_browser.lower() != "none":
+        chosen_browser = preferred_browser.lower()
+    elif detected_browsers:
+        # 默认优先 Chrome，其次 Safari
+        chosen_browser = 'chrome' if 'chrome' in detected_browsers else detected_browsers[0]
+
+    if chosen_browser:
+        print(f"  • 认证 Cookie 策略: 选用 {chosen_browser.capitalize()} 浏览器 (可通过 --browser 切换) [✅ 就绪]")
+    else:
+        print(f"  • 认证 Cookie 策略: 无 Cookie 模式 (仅公开高清视频) [ℹ️ 提示]")
+
+    # 4. 存储路径检查
+    abs_out = os.path.abspath(output_dir)
+    os.makedirs(abs_out, exist_ok=True)
+    if os.access(abs_out, os.W_OK):
+        print(f"  • 输出目标目录: {abs_out} [✅ 可写入]")
+    else:
+        print(f"  • 输出目标目录: {abs_out} [❌ 无写入权限]")
+        return False, None
+
+    print("\n✅ 环境预检全部通过！系统已做好处理准备。\n")
+    return True, chosen_browser
+
+def run_download(url, output_dir=".", browser="auto", sub_only=False):
+    # 步骤 1：预检
+    ok, chosen_browser = run_preflight_check(output_dir, preferred_browser=None if browser == "auto" else browser)
+    if not ok:
+        sys.exit(1)
+
+    # 步骤 2：下载媒体与独立字幕
+    print_pipeline_roadmap(current_step=2)
+    print(f"📥 [阶段 2/5] 正在执行视频与独立字幕抓取...")
+    print(f"  • 目标视频 URL: {url}")
+    print(f"  • 优先字幕轨道: en-orig (原声语音自动转录)")
+    print(f"  • 存储隔离规范: 独立 .srt 外挂文件，严禁封装入视频容器")
+
+    # 构建字幕下载指令
     sub_cmd = [
         "yt-dlp",
-        "--cookies-from-browser", browser_cookies,
         "--skip-download",
         "--write-subs",
         "--write-auto-subs",
@@ -67,42 +158,68 @@ def run_download(url, output_dir=".", browser_cookies="chrome"):
         "-P", output_dir,
         url
     ]
-    
-    print("\n执行字幕下载命令...")
+    if chosen_browser:
+        sub_cmd.extend(["--cookies-from-browser", chosen_browser])
+
+    print("\n[2.1/2] 正在拉取独立字幕轨道...")
     try:
         subprocess.run(sub_cmd, check=True)
-        print("✅ 原始字幕下载完成！")
+        print("✅ 原始字幕 (.srt) 下载就绪！")
     except subprocess.CalledProcessError as e:
-        print(f"\n⚠️ 字幕下载遇到异常 (返回码 {e.returncode})：")
-        print("【故障排查指引】：")
-        print("1. 如果报错与 Chrome Cookie 锁死相关：请尝试完全退出 Chrome 浏览器后重试，或去掉 '--cookies-from-browser'。")
-        print("2. 如果该视频未提供 'en-orig'：可通过 'yt-dlp --list-subs <URL>' 查看该视频支持的字幕语言。")
-        print("3. 如果网络超时：请检查网络连接或代理配置。")
-        # 不强制退出，继续尝试下载视频
-    
-    # 步骤 2: 下载视频文件 (不合并字幕)
+        print(f"\n⚠️ 使用 {chosen_browser} Cookie 拉取字幕受阻，尝试无 Cookie 降级拉取...")
+        sub_cmd_nocookie = [c for c in sub_cmd if c != chosen_browser and c != "--cookies-from-browser"]
+        try:
+            subprocess.run(sub_cmd_nocookie, check=True)
+            print("✅ 降级无 Cookie 拉取字幕成功！")
+        except Exception as e2:
+            print(f"❌ 字幕下载失败: {e2}")
+
+    if sub_only:
+        print("\nℹ️ 已开启 --sub-only 仅字幕模式，跳过视频文件下载。")
+        return
+
+    # 构建视频下载指令 (不封装字幕)
     video_cmd = [
         "yt-dlp",
-        "--cookies-from-browser", browser_cookies,
         "-P", output_dir,
         url
     ]
-    
-    print("\n执行视频下载命令...")
+    if chosen_browser:
+        video_cmd.extend(["--cookies-from-browser", chosen_browser])
+
+    print("\n[2.2/2] 正在下载视频文件...")
     try:
         subprocess.run(video_cmd, check=True)
-        print("✅ 视频下载完成！")
+        print("✅ 视频源文件下载完成！")
     except subprocess.CalledProcessError as e:
-        print(f"\n❌ 视频下载失败 (返回码 {e.returncode})：")
-        print("【故障排查指引】：")
-        print("1. 请确认该 YouTube 视频是否为私密/会员专享视频。")
-        print("2. 检查存储空间是否充足。")
-        sys.exit(e.returncode)
+        print(f"\n⚠️ 视频下载遇到异常: {e}")
+        print("尝试无 Cookie 模式降级重试...")
+        video_cmd_nocookie = [c for c in video_cmd if c != chosen_browser and c != "--cookies-from-browser"]
+        try:
+            subprocess.run(video_cmd_nocookie, check=True)
+            print("✅ 视频源文件降级下载成功！")
+        except Exception as e2:
+            print(f"❌ 视频下载失败: {e2}")
+            sys.exit(1)
+
+    print("\n🎉 [阶段 2/5] 媒体与字幕抓取全部完成！已准备好进入 [阶段 3: 滚动去重与语义长句重构]。\n")
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("使用方法: python3 download_video_and_sub.py <YouTube_URL> [output_dir]")
+    parser = argparse.ArgumentParser(description="YouTube 访谈视频与独立原声字幕全自动下载器")
+    parser.add_argument("url", nargs="?", help="YouTube 视频链接 (如 https://www.youtube.com/watch?v=...)")
+    parser.add_argument("output_dir", nargs="?", default=".", help="文件保存目录 (默认为当前目录)")
+    parser.add_argument("--browser", default="auto", help="Cookie 来源浏览器: chrome, safari, firefox, edge, 或 none (默认自动检测)")
+    parser.add_argument("--sub-only", action="store_true", help="仅下载字幕，不下载视频大文件")
+    parser.add_argument("--check-only", action="store_true", help="仅运行阶段 1 环境预检，不下载任何内容")
+
+    args = parser.parse_args()
+
+    if args.check_only:
+        run_preflight_check(args.output_dir, preferred_browser=args.browser)
+        sys.exit(0)
+
+    if not args.url:
+        print("使用帮助: python3 download_video_and_sub.py <YouTube_URL> [output_dir] [--browser chrome/safari/none] [--sub-only] [--check-only]")
         sys.exit(1)
-    url_arg = sys.argv[1]
-    out_arg = sys.argv[2] if len(sys.argv) > 2 else "."
-    run_download(url_arg, out_arg)
+
+    run_download(args.url, args.output_dir, browser=args.browser, sub_only=args.sub_only)
