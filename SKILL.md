@@ -52,13 +52,29 @@ python3 scripts/download_video_and_sub.py --check-only
 
 ---
 
-### 步骤 2：视频与独立字幕下载 (Media Download)
-运行脚本下载视频源文件与独立的原始英文转录字幕（`-orig`），确保字幕为外部独立 `.srt` 文件，不封装入视频容器。
+### 步骤 2：视频与独立字幕下载 (Media Download & Dedicated Directory)
+运行脚本下载视频源文件与独立的原始英文转录字幕（`-orig`）。**脚本默认会自动为每一个视频创建独立的专属子目录**，避免多视频处理时根目录混乱：
 
 ```bash
-python3 scripts/download_video_and_sub.py "<YouTube_URL>" [output_dir] [--browser auto/chrome/safari/none] [--sub-only]
+python3 scripts/download_video_and_sub.py "<YouTube_URL>" [output_dir] [--browser auto/chrome/safari/none] [--sub-only] [--flat]
 ```
-- **核心逻辑**：优先获取 `en-orig` 语音原声转录，避免二手翻译；Cookie 锁死时自动降级无 Cookie 重试；可加 `--sub-only` 仅抓字幕。
+- **核心逻辑**：
+  * **独立专属目录**：自动在 `output_dir` 下创建 `<视频标题> [<视频ID>]/` 独立目录，所有后续产物均归拢于此；
+  * **字幕外挂隔离**：优先获取 `en-orig` 语音原声转录，以独立 `.srt` 保存，严禁封装进视频容器；
+  * **Cookie 智能容灾**：浏览器 Cookie 锁定或受限时，自动尝试同级 `youtube_cookies.txt`，最后自动降级无 Cookie 拉取；
+  * **轻量模式**：可加 `--sub-only` 仅抓字幕，跳过大文件视频下载。
+
+```text
+📁 独立专属目录标准规范：
+output_dir/
+└── <视频标题> [<视频ID>]/
+    ├── <视频标题> [<视频ID>].webm (或 .mp4)
+    ├── <视频标题> [<视频ID>].en-orig.srt
+    ├── <视频标题> [<视频ID>].merged.srt
+    ├── <视频标题> [<视频ID>].merged.zh-Hans.srt
+    ├── <视频标题> [<视频ID>].merged.bilingual.srt
+    └── 访谈精读与核心总结.html
+```
 
 ---
 
