@@ -72,6 +72,7 @@ def get_speaker(idx):
 
 import sys
 import glob
+import os
 
 # Resolve input and output file paths dynamically
 if len(sys.argv) >= 3:
